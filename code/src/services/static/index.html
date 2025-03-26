@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entity Risk Assessment System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .risk-low { background-color: #d4edda; }
+        .risk-medium { background-color: #fff3cd; }
+        .risk-high { background-color: #f8d7da; }
+        #results { max-height: 600px; overflow-y: auto; }
+        .card { margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">Entity Risk Assessment System</h1>
+        
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Transaction Analysis</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="transaction-form">
+                            <div class="mb-3">
+                                <label for="transaction-data" class="form-label">Transaction Description</label>
+                                <textarea class="form-control" id="transaction-data" rows="3" placeholder="Payment from Acme Corp to XYZ Holdings"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="amount" class="form-label">Amount</label>
+                                <input type="number" class="form-control" id="amount" placeholder="100000">
+                            </div>
+                            <div class="mb-3">
+                                <label for="currency" class="form-label">Currency</label>
+                                <select class="form-control" id="currency">
+                                    <option value="USD">USD</option>
+                                    <option value="EUR">EUR</option>
+                                    <option value="GBP">GBP</option>
+                                    <option value="JPY">JPY</option>
+                                    <option value="CHF">CHF</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Analyze</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5>Quick Actions</h5>
+                    </div>
+                    <div class="card-body">
+                        <button id="generate-transaction" class="btn btn-outline-secondary mb-2 w-100">Generate Random Transaction</button>
+                        <button id="batch-analyze" class="btn btn-outline-secondary w-100">Analyze Batch of Transactions</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5>Analysis Results</h5>
+                        <div>
+                            <button id="clear-results" class="btn btn-sm btn-outline-danger">Clear</button>
+                        </div>
+                    </div>
+                    <div class="card-body" id="results">
+                        <div class="alert alert-info">
+                            Submit a transaction or use one of the quick actions to see the results.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="mt-5 text-center text-muted">
+            <p>Entity Risk Assessment System | <a href="/docs" target="_blank">API Documentation</a></p>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const transactionForm = document.getElementById('transaction-form');
+            const generateButton = document.getElementById('generate-transaction');
+            const batchButton = document.getElementById('batch-analyze');
+            const clearButton = document.getElementById('clear-results');
+            const resultsDiv = document.getElementById('results');
+            
+            transactionForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const transactionData = document.getElementById('transaction-data').value;
+                const amount = document.getElementById('amount').value;
+                const currency = document.getElementById('currency').value;
+                
+                if (!transactionData || !amount) {
+                    alert('Please provide transaction description and amount');
+                    return;
+                }
+                
+                analyzeTransaction({
+                    transaction_id: `TXN${Date.now().toString().slice(-8)}`,
+                    transaction_data: transactionData,
+                    amount: parseFloat(amount),
+                    currency: currency,
+                    date: new Date().toISOString().split('T')[0]
+                });
+            });
+            
+            generateButton.addEventListener('click', function() {
+                fetch('/api/v1/generate-transaction')
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('transaction-data').value = data.transaction_data;
+                        document.getElementById('amount').value = data.amount;
+                        document.getElementById('currency').value = data.currency;
+                        
+                        analyzeTransaction(data);
+                    });
+            });
+            
+            batchButton.addEventListener('click', function() {
+                batchButton.disabled = true;
+                batchButton.innerHTML = 'Analyzing...';
+                
+                fetch('/api/v1/batch-analyze', {
+                    method: 'POST'
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        resultsDiv.innerHTML = '';
+                        data.forEach(result => {
+                            resultsDiv.appendChild(createResultCard(result));
+                        });
+                    })
+                    .finally(() => {
+                        batchButton.disabled = false;
+                        batchButton.innerHTML = 'Analyze Batch of Transactions';
+                    });
+            });
+            
+            clearButton.addEventListener('click', function() {
+                resultsDiv.innerHTML = '<div class="alert alert-info">Submit a transaction or use one of the quick actions to see the results.</div>';
+            });
+            
+            function analyzeTransaction(transaction) {
+                fetch('/api/v1/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(transaction)
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        resultsDiv.innerHTML = '';
+                        data.forEach(result => {
+                            resultsDiv.appendChild(createResultCard(result));
+                        });
+                    });
+            }
+            
+            function createResultCard(result) {
+                const riskLevel = result.risk_score < 0.4 ? 'low' : (result.risk_score < 0.7 ? 'medium' : 'high');
+                const riskClass = `risk-${riskLevel}`;
+                
+                const card = document.createElement('div');
+                card.className = `card mb-3 ${riskClass}`;
+                
+                card.innerHTML = `
+                    <div class="card-header">
+                        <h5>${result.extracted_entity.join(', ')}</h5>
+                        <div class="small text-muted">ID: ${result.transaction_id} | Type: ${result.entity_type.join(', ')}</div>
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <h6>Risk Score</h6>
+                                <div class="progress">
+                                    <div class="progress-bar ${riskLevel === 'high' ? 'bg-danger' : (riskLevel === 'medium' ? 'bg-warning' : 'bg-success')}" 
+                                         role="progressbar" 
+                                         style="width: ${result.risk_score * 100}%" 
+                                         aria-valuenow="${result.risk_score * 100}" 
+                                         aria-valuemin="0" 
+                                         aria-valuemax="100">
+                                        ${Math.round(result.risk_score * 100)}%
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Confidence Score</h6>
+                                <div class="progress">
+                                    <div class="progress-bar bg-info" 
+                                         role="progressbar" 
+                                         style="width: ${result.confidence_score * 100}%" 
+                                         aria-valuenow="${result.confidence_score * 100}" 
+                                         aria-valuemin="0" 
+                                         aria-valuemax="100">
+                                        ${Math.round(result.confidence_score * 100)}%
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <h6>Reason</h6>
+                        <p>${result.reason}</p>
+                        <h6>Supporting Evidence</h6>
+                        <p>${result.supporting_evidence.join(', ')}</p>
+                    </div>
+                `;
+                
+                return card;
+            }
+        });
+    </script>
+</body>
+</html> 
